@@ -43,8 +43,6 @@ Temporary Items
 .apdisk
 
 # Project Specific
-.RData
-.Rhistory
 data
 PracticalMachineLearningAssignment_cache
 gh-pages
