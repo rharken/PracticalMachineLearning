@@ -1,0 +1,104 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Rich Harken"
+date: "October 22, 2015"
+output: html_document
+---
+
+```{r, echo=FALSE,error=FALSE,warning=FALSE,message=FALSE}
+library(ggplot2)
+library(lattice)
+library(caret)
+library(randomForest)
+setwd("C:/Users/Rich/Class Assignments/Practical Machine Learning/PracticalMachineLearningAssignment")
+
+#Helpful function for submitting part 2
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+```
+
+From the Project assignment:
+
+*Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).*
+
+*The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.*
+
+```{r, echo=FALSE}
+FitnessTrain<-read.csv("data/pml-training.csv", na.strings = c("", "NA", "#DIV/0!"))
+FitnessTest<-read.csv("data/pml-testing.csv", na.strings = c("", "NA", "#DIV/0!"))
+
+#Now take the training data and split it for training and testing cross validation
+set.seed(754)
+inTrain<-createDataPartition(y=FitnessTrain$classe, p=.70, list=FALSE)
+training<-FitnessTrain[inTrain,]
+testing<-FitnessTrain[-inTrain,]
+
+```
+
+## Initial cleanup of the data
+To start to build a machine learning model - I first needed load the data in and clean it up.  I started by first looking at the data via a text editor and then loading the data while removing columns with "NA" and "#DIV/0!" values which I found in the dataset.  This may not be appropriate and we may need to infer values, but to get started, it removes a complex step so we can get an initial model built.  I then split the dataset into a training (70%) and testing (30%) set so I could begin building the model.  
+
+
+The next step is to process the data so a model could be built.  I began by runnuing a near zero analysis on the training set to see if there were measurements with possibly no impact on the model.  There were several so I chose to eliminate these.  I also eliminated some data not relevent to predicting the classe variable.  These were the user name and timestamps which are not measurements for predicting correctness of the exercise.  The variables I used to analyze for the model were: 
+```{r, echo=FALSE}
+#First clean out columns with NAs for training
+trainingClean<-training[,colSums(is.na(training)) == 0]
+
+#Removing identifiers and timestamps
+trainingClean1<-trainingClean[,-c(1,2,3,4,5)]
+
+#Near zero variables
+nzv<-nearZeroVar(trainingClean1, saveMetrics=TRUE)
+trainingClean2<-trainingClean1[,!nzv[,4]]
+
+print(colnames(trainingClean2[ , !names(trainingClean2) %in% c("classe")]))
+```
+
+
+## Analysis and Creation of the Prediction Model
+```{r, echo=FALSE}
+numberOfCovariates<-toString(ncol(trainingClean2)-1)
+```
+
+Since there were a large number of covariates - `r numberOfCovariates`, I thought I would start just by building a model with all the data, and see what results I would get.  Also with `r numberOfCovariates` covariates and not really any domain knowledge, I thought looking at correlations would be confusing - even though that would usually be the next step to build a good model.
+
+Again - with the large number of predictors, I chose the random forest model as a good first try because of it's accuracy but I would need to cross validate the data to avoid overfitting.  I chose K-fold cross validation for the model build.  Since large K gives less bias but more variance and smaller K is the opposite, I thought I would start with 5 folds.  I Googled K fold cross validation and saw that 10 was good, but the model was running a long time, so I cut it in half.
+
+I used the following code to build the model:
+
+```{r, echo=TRUE, error=FALSE, warning=FALSE, message=FALSE, cache=TRUE}
+#Train the model
+initialFit<-train(classe ~ ., data=trainingClean2, method="rf", verbose=FALSE, trControl=trainControl(method="cv", number=5), allowParallel=TRUE)
+```
+
+Which produced the following model:
+```{r, echo=FALSE}
+print(initialFit)
+print(initialFit$finalModel)
+```
+
+
+The results were very good with a 99% accuracy and an out of sample (Out Of Bag) estimate of error rate at only 0.24%.  This shows the accuracy of a random forest model, but we still need to validate how this model works to determine if there is overfitting occuring.  The next step was to test the model with the testing data.
+
+## Testing the model
+The test data was run with the model generated in the last step with these results:
+```{r, echo=FALSE}
+#Test the model
+testPredict<-predict(initialFit, testing)
+confusionMatrix(testPredict,testing$classe)
+```
+
+The results here were very promising - the accuracy rate was validated with the model matching the 99% rate determined in the model build.  This showed that there was not a lot of overfitting occuring between the training and the test data.  With the accuracy high and error rates low, I decided to run the separate test data set with the initially built model.
+
+## Results
+And the following predictions are:
+```{r, echo=FALSE}
+finalRun<-predict(initialFit, FitnessTest)
+print(finalRun)
+pml_write_files(finalRun)
+```
