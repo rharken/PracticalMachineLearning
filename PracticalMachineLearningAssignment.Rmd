@@ -10,7 +10,7 @@ library(ggplot2)
 library(lattice)
 library(caret)
 library(randomForest)
-setwd("C:/Users/Rich/Class Assignments/Practical Machine Learning/PracticalMachineLearningAssignment")
+setwd("C:/Users/Rich/Class Assignments/PracticalMachineLearning/PracticalMachineLearningAssignment")
 
 #Helpful function for submitting part 2
 pml_write_files = function(x){
